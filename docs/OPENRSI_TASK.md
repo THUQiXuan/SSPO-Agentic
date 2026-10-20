@@ -15,7 +15,45 @@ evaluator: **exact select@8 of the deployed execution selector on the hidden 128
 is whether the agent can discover a credit-assignment rule that beats SSPO (64.28 select@8 for seed 0) under the
 same budget, and why.
 
-## 2. Draft of the proposal fields
+## 2. Fixed setting
+
+| Item | Value | Reason |
+|---|---|---|
+| Reference baseline | SSPO, released step-30 adapter (training seed 0) | the human reference method of the task |
+| Evaluation mode | direct evaluation of the submitted LoRA adapter (candidate-only) | the evaluator scores the adapter itself; retraining in Judge would double every cycle |
+| Training per candidate (Work) | 30 steps × 16 problems × 16 agent runs = 7,680 runs; problems from the 231-problem pool (≈ 2.1 epochs); training seed fixed to 0 for every candidate (same problem order and rollout seeds as the reference adapter); LoRA r = 64, lr 1e-5, 2 PPO mini-batches per step; up to 8 turns, 40,960-token context, no generation cap; the step-30 adapter is the deliverable | identical to the protocol of the reported results, so the released SSPO adapter is a matched baseline without retraining. At step 15 the methods were not yet distinguishable on the test set (SSPO − Dr. GRPO +2.35 [−2.26, +6.77]); at step 30 they were (+4.94 [+0.26, +9.78]), so a shorter run would remove the signal the task is about |
+| Evaluation per candidate (Judge) | 128 test problems (114 contests) × 16 agent runs = 2,048 runs, run seeds fixed (eval seed 20261018); exact select@8 over all C(16, 8) subsets | unchanged test set: all re-selected held-out problems not used for the dev set |
+| Optional evaluation in Work | dev set, 65 problems × 16 runs (≈ 10–15 min on 8 GPUs), counted in Work time | lets the agent compare candidates without spending Judge submissions |
+| Execution lane | one node, 8 × H200 (141 GB), ≥ 64 CPU cores, ≥ 400 GB RAM; Work and Judge use the same 8 GPUs one after the other | H200 is the only card measured to run uncapped 40,960-token agent rollouts without stalling the KV cache; H100-80G is not validated for this lane |
+| Estimated cycle | Work 2.5–3.5 h + Judge 0.3–0.5 h + startup 0.2 h ≈ 3.0–4.2 h → about 11–16 complete loops in 48 h | within the normal reference (≥ 10 loops in 48 h); above the 3-hour soft preference because every rollout step waits for its longest 40,960-token run |
+
+Basis of the cycle estimate (to be replaced by the measurement of section 3): on one H200 a training step took 417–944 s
+(rollout of 256 runs 304–825 s, checker scoring ≈ 90 s, update ≈ 80 s) and the test evaluation 1–1.5 h. With 8 GPUs
+each vLLM server holds 32 runs per step, so the rollout is bounded by the longest single run (≈ 3–5 min when a run fills
+the context), not by throughput; the update is data-parallel with the same global batch and loss normalizer, so the
+8-GPU lane trains with the same protocol as the 1-GPU runs.
+
+## 3. Seeds: what is repeated and what is not
+
+* **Every candidate of the research loop: one training seed (0) and one evaluation, not repeated.** A second seed per
+  candidate would roughly double the cycle (≈ 7–8 h, fewer than 7 loops in 48 h). The evaluation of a fixed adapter
+  uses fixed run seeds, so repeating it measures nothing new.
+* **SSPO baseline: two additional training seeds (1 and 2), once, before the agent run.** The only evidence for the
+  level of SSPO is one seed, while the gains the task is about are a few points (SSPO beat Dr. GRPO by 4.9), the same
+  order as plausible seed-to-seed variation of a 30-step LoRA RL run. The agent also keeps the best of about 12
+  single-seed results, which inflates that result when the spread is not small. Without the spread no meaningful-gain
+  threshold can be set. The same job validates the 8-GPU lane and measures Work and Judge time
+  (`cluster/openrsi_validate_8gpu.sh`: re-score the released seed-0 adapter, train and score seeds 1 and 2;
+  about 8 h on one 8 × H200 node).
+* **Threshold after that job.** Let s be the standard deviation of test select@8 across SSPO seeds 0, 1, 2 and m their
+  mean. A final candidate is a meaningful improvement when its seed-0 score exceeds m by at least G = max(2, 3s)
+  points (one seed against a three-seed mean has standard deviation ≈ 1.15 s, and the final candidate is the best of
+  about 12, so 3s ≈ 2.6 standard deviations). Only when the final candidate lies above m but below m + G is it
+  retrained with seeds 1 and 2; the conclusion then uses its three-seed mean against m with threshold 2s (≈ 2.4
+  standard deviations of a difference of two three-seed means). Otherwise no further seeds are run.
+* Dr. GRPO and PKPO are not baselines of this task and need no additional seeds for it.
+
+## 4. Draft of the proposal fields
 
 | Field | Draft |
 |---|---|
@@ -27,22 +65,22 @@ same budget, and why.
 | Starting environment and artifacts | This repository; `Qwen/Qwen3-4B` (Hugging Face, pinned revision `1cfa9a7208912126459214e8b04321603b3df60c`); released problem files (training pool 231, dev 65, test 128), released frozen-checker cases, released SSPO / Dr. GRPO / PKPO step-30 adapters (GitHub release `v1.0`). Test problems, their hidden tests and their checker cases are Judge-only. |
 | Agent's final deliverable | The LoRA adapter (`runs/sel_file_s0/ckpt/rl_0030/adapter`) produced in Work by `scripts/train.sh --method sel_file`, together with `algorithms/candidate.py` and the run manifest / metrics. |
 | Files the agent may modify | `algorithms/candidate.py` only (pure-Python function `compute_advantages(group, ctx)`; interface in `rbd/sspo/plugin.py`). |
-| Prohibited actions | Changing the model, LoRA shape, sampling, number of steps, problems per step, runs per problem, learning rate, optimizer, loss form, context or turn limits; training on dev or test problems or any data outside the training pool; reading or copying Judge-only test files or checker cases; modifying the checker, selector, evaluator or report code; submitting an adapter not produced by the fixed training command; editing logs or metrics. |
-| Reference baseline | The released SSPO step-30 adapter (evaluation-ready artifact). Solution materializes it by copying the release asset; no training or evaluation is needed. Dr. GRPO and PKPO adapters are additional references. *Contributor chooses the reference baseline.* |
+| Prohibited actions | Changing the model, LoRA shape, sampling, training seed, number of steps, problems per step, runs per problem, learning rate, optimizer, loss form, context or turn limits; training on dev or test problems or any data outside the training pool; reading or copying Judge-only test files or checker cases; modifying the checker, selector, evaluator or report code; submitting an adapter not produced by the fixed training command; editing logs or metrics. |
+| Reference baseline | The released SSPO step-30 adapter, training seed 0 (evaluation-ready artifact). Solution materializes it by copying the release asset; no training or evaluation is needed. |
 | Repository evidence paths | `rbd/sspo/advantages.py` (arms), `algorithms/*.py`, `rbd/sspo/builder.py` (training step), `configs/methods/sel_*.yaml` (protocol), `rbd/sspo/evaluate.py` (evaluator), `selectrl/algolib/selector.py` (exact select@k), `rbd/sspo/report.py` (paired bootstrap), `results/test128_step30.md` (reported numbers). |
 | Baseline evaluation path | `bash scripts/sel_eval.sh --name ref --adapter <sspo adapter> --splits test` then `python -m rbd.sspo.evaluate score --split-file data/sel/test.jsonl.gz --out runs/eval/ref/test`. |
 | Baseline metric reported by the repository | select@8 = 64.28% on the 128-problem test set (seed 0, step 30); frozen 58.20, Dr. GRPO 59.34, PKPO 59.02. Not yet reproduced by OpenRSI. |
-| Fixed evaluation protocol | 128 test problems × 16 agent runs; run seeds depend only on (problem, run index), identical for every candidate; up to 8 turns per run inside the model's 40,960-token context, no generation cap; counted unit = one agent run; no resampling or replacement; infrastructure retries rerun the same seed. select@8 and cov@8 exact over all C(16, 8) subsets; candidate-only evaluation (the baseline is not re-run per submission). |
-| Evaluation mode and input | Direct evaluation of the submitted LoRA adapter. *Alternative (contributor decision):* evaluation-time retraining from the submitted `algorithms/candidate.py`, which lets Judge enforce the training budget but adds one full training run (~3 h on 8 GPUs) to every Judge step. |
+| Fixed evaluation protocol | 128 test problems × 16 agent runs; run seeds depend only on (problem, run index), identical for every candidate; up to 8 turns per run inside the model's 40,960-token context, no generation cap; counted unit = one agent run; no resampling or replacement; infrastructure retries rerun the same seed. select@8 and cov@8 exact over all C(16, 8) subsets; candidate-only evaluation (the baseline is not re-run per submission). The candidate adapter must come from the fixed training protocol of section 2 with training seed 0. |
+| Evaluation mode and input | Direct evaluation of the submitted LoRA adapter. |
 | Score | Mean select@8 over the 128 problems, in percent, higher is better. Adapter that fails to load (wrong rank, missing keys, non-finite weights) or a training run that did not finish: unscored. Agent-environment command failures inside an evaluation run are part of the score (the run simply fails), not candidate failures. |
 | Feedback visible to the agent | Aggregate test select@8, cov@8, pass@1 and checker pass rate per submission. The agent can additionally evaluate on the dev set (65 problems, provided in Work) with the same evaluator. |
 | Hidden from the agent | Test problem statements, hidden tests, test checker cases, per-problem outcomes and samples. |
 | Reward-hacking measures | Judge evaluates only the adapter with its own copy of the evaluator and test files; Judge checks the run manifest (config hash of `configs/methods/sel_file.yaml`, 30 completed steps) and that only `algorithms/candidate.py` differs from the pinned repository. Residual limitation of the shared Base/Work/Judge snapshot: Work is agent-controlled, so adherence to the training protocol is checked from artifacts, not re-executed. |
-| Noise and meaningful improvement | One seed: 95% contest-bootstrap intervals have half-width ≈ 5 points; SSPO vs Dr. GRPO = +4.9 [+0.3, +9.8]. Gains of ~5 points are distinguishable; after reproduction, repeat training seeds if observed seed variance could change a conclusion. |
+| Noise and meaningful improvement | Proposal stage: with one seed, the three credit rules already separated by about 5 points on this test set (SSPO − Dr. GRPO = +4.9 [+0.3, +9.8]), so a change of the credit rule can move the score by an amount that one seed already resolves on this test set. After baseline reproduction: SSPO seeds 1 and 2 give the seed spread s; the meaningful-gain threshold and the rule for retraining the final candidate with more seeds are in section 3. |
 | Web search / external services / extra data | Disabled / none / none (training data fixed to the 231-problem pool). |
-| Compute per candidate | *Contributor estimate.* Measured on 1× H200: training ≈ 30 × 10 min ≈ 5 h, test evaluation ≈ 1–1.5 h. Single-node 8-GPU lane (estimate, not yet measured): training ≈ 2.5–3.5 h, Judge ≈ 0.5 h, cycle ≈ 3–4 h → about 12–16 loops in 48 h. 1-GPU lane: cycle ≈ 6.5 h → about 7 loops in 48 h (non-blocking Flag). CPU: ≥ 32 cores for program execution; RAM ≈ 200 GB. |
+| Compute per candidate | One node, 8 × H200, ≥ 64 CPU cores, ≥ 400 GB RAM for both phases. Work (training) ≈ 2.5–3.5 h, Judge (test evaluation) ≈ 0.3–0.5 h, startup ≈ 0.2 h; cycle ≈ 3.0–4.2 h → about 11–16 loops in 48 h (estimate from 1-GPU measurements, section 2; replaced by the 8-GPU measurement before submission). |
 
-## 3. Requirements check (proposal-agent rubric, nine gates)
+## 5. Requirements check (proposal-agent rubric, nine gates)
 
 | Gate | Status | Evidence and open items |
 |---|---|---|
@@ -54,13 +92,13 @@ same budget, and why.
 | 6. Action space | Pass | Credit assignment admits many distinct hypotheses (see "Why research"). Contributor may widen it (e.g. per-turn advantages) — currently out of the interface. |
 | 7. Evaluation integrity | Pass with stated residual | Test content Judge-only; aggregate feedback only; Work-produced adapter checked against manifest. CodeContests is public, so the only leakage path is copying test data into training, which is prohibited and needs network access or Judge files that Work does not have. |
 | 8. Data and network | Pass | No web, no services, no extra data. |
-| 9. Task-generation readiness | Pending contributor decisions | Email; evaluation mode (direct vs retraining); reference baseline (SSPO vs Dr. GRPO); compute lane (1 vs 8 GPUs, GPU type) and runtime confirmation. |
+| 9. Task-generation readiness | Pending two items | Contributor email; measured 8-GPU cycle time (section 3 job). Baseline, evaluation mode, workload and lane are fixed in section 2. |
 
-Compute check: within the normal reference for the 8-GPU lane (estimate); Flag for a 1-GPU lane.
+Compute check: within the normal reference (estimate of 11–16 loops in 48 h on 8 × H200).
 
-## 4. Things to finish before submitting
+## 6. Things to finish before submitting
 
 1. Publish the release assets (problem files, checker cases, three adapters, evaluation rows) and pin the commit.
-2. Validate the 8-GPU colocated training path once (all reported runs used one H200 per run).
-3. Decide the open contributor items in section 3, gate 9.
-4. Optional: a second training seed for SSPO and Dr. GRPO to estimate seed variance.
+2. Run `cluster/openrsi_validate_8gpu.sh` on one 8 × H200 node: it validates the Work and Judge lane, measures the
+   cycle time and gives SSPO seeds 1 and 2; then fill in s, m and G (section 3) and the measured times.
+3. Contributor email.
