@@ -1,0 +1,16 @@
+# Selection-aware comparison. Arm: SSPO (ours): A_i = (k/n)[(1 - alpha)(A^cov - b^cov) + alpha A^(S,U)] with J^- (Sigma^+_x),
+# exact DP under cluster purity, subset enumeration otherwise; alpha = 0.7, k = 8. Other settings as sel_drgrpo.
+name: sel_sspo
+sel_arm: sspo
+steps: 30
+tasks_per_step: 16
+group_size: 16          # n = 16 runs per problem (k = 8 subsets: C(16, 8) = 12,870)
+k_deploy: 8
+alpha: 0.7
+lr: 1.0e-5              # LoRA learning rate (10x the full-fine-tuning 1e-6 of the second version)
+clip_low: 0.2
+clip_high: 0.28
+ppo_mini_batches: 2
+loss_norm_tokens: 4096
+max_grad_norm: 1.0
+save_every: 5

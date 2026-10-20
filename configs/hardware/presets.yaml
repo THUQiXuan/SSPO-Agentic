@@ -1,0 +1,14 @@
+# GPU-memory tiers (single node, 1-8 GPUs). Measured: only the 140 GB tier (H200) sustains the uncapped
+# 40,960-token agent rollouts at full speed; 48 GB and 80 GB cards stall when a few runs fill the KV cache.
+# "colocate": one vLLM server and one training rank on every GPU with a
+# static memory split; "split": the first half of the GPUs serve, the second half train. micro_tokens is the
+# packing budget of one forward pass (a longer sequence is always processed alone; it never truncates context).
+gpu48:      # A40 / L40 / L40S / A6000 (46-48 GB)
+  qwen3_4b:  {placement: colocate, mem_util: 0.40, max_num_seqs: 64, micro_tokens: 8192, min_gpus: 1}
+  qwen3_8b:  {placement: colocate, mem_util: 0.85, max_num_seqs: 128, micro_tokens: 8192, min_gpus: 1}   # helper serving only
+gpu80:      # A100-80G / H100-80G
+  qwen3_4b:  {placement: colocate, mem_util: 0.35, max_num_seqs: 128, micro_tokens: 16384, min_gpus: 1}
+  qwen3_8b:  {placement: colocate, mem_util: 0.85, max_num_seqs: 256, micro_tokens: 16384, min_gpus: 1}
+gpu140:     # H200 / B200 (>= 120 GB)
+  qwen3_4b:  {placement: colocate, mem_util: 0.30, max_num_seqs: 256, micro_tokens: 32768, min_gpus: 1}
+  qwen3_8b:  {placement: colocate, mem_util: 0.85, max_num_seqs: 256, micro_tokens: 32768, min_gpus: 1}

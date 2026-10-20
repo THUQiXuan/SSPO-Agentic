@@ -1,0 +1,15 @@
+# Agentic coding with deployment-time execution selection (SSPO second version, sections 4-5): each run is an agent
+# in a git repository that edits solution.py with bash commands, may run the public examples (run_tests.py) and
+# submits; at most 8 turns inside the model's full context window (40,960 tokens for Qwen3-4B; command outputs shown
+# to the agent are cut to their first and last 5,000 characters). The representative program y(tau) of a run is the
+# last solution.py version that passes the public examples (else the last version); g / Chk / sig come from the
+# frozen checker (cases built from Qwen3-8B helpers).
+name: code_sel
+env: repo
+train: data/sel/train.jsonl.gz       # calibrated pool: base agent solves 1-7 of 8 runs
+dev: data/sel/dev.jsonl.gz
+eval: data/sel/test.jsonl.gz
+max_turns: 8
+command_timeout_s: 30
+cache_root: cache
+cases_dir: cache/checkers/cases

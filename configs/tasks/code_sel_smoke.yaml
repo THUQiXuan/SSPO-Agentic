@@ -1,0 +1,7 @@
+# Smoke test of the selection-aware training path on a few dev problems WITHOUT checker cases (Chk = public
+# examples only); separate execution cache so that the real cache is never touched.
+inherit: code_sel.yaml
+name: code_sel_smoke
+train: data/sel/dev.jsonl.gz
+cache_root: cache_smoke
+cases_dir: cache_smoke/none

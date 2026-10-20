@@ -1,0 +1,14 @@
+# Setting B: Qwen3-4B, thinking off, the model's default context from its config (max_position_embeddings),
+# i.e. vLLM is started without --max-model-len (0 = use the model default).
+name: qwen3_4b
+hf_id: Qwen/Qwen3-4B
+revision: 1cfa9a7208912126459214e8b04321603b3df60c
+max_model_len: 0                 # 0 = the model default from config.json (40,960 tokens for Qwen3-4B); never overridden
+language_model_only: false
+enable_thinking: false
+lora:
+  r: 64
+  alpha: 128
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+vllm_adapter_key_map: auto
+params_b: 4.0

@@ -1,0 +1,14 @@
+# Frozen helper model of the execution checker (SSPO second version: helpers written once per problem by a frozen
+# Qwen3-8B, thinking off). Served with its default context (40,960 tokens); never trained.
+name: qwen3_8b
+hf_id: Qwen/Qwen3-8B
+revision: b968826d9c46dd6066d109eabc6255188de91218
+max_model_len: 0
+language_model_only: false
+enable_thinking: false
+lora:
+  r: 64
+  alpha: 128
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+vllm_adapter_key_map: auto
+params_b: 8.0

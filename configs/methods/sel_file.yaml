@@ -1,0 +1,17 @@
+# Research-agent arm: advantages from algorithms/candidate.py (rbd/sspo/plugin.py interface); every other setting is
+# the shared protocol of sel_sspo / sel_drgrpo / sel_pkpo.
+name: sel_file
+sel_arm: file
+algorithm_file: algorithms/candidate.py
+steps: 30
+tasks_per_step: 16
+group_size: 16
+k_deploy: 8
+alpha: 0.7
+lr: 1.0e-5
+clip_low: 0.2
+clip_high: 0.28
+ppo_mini_batches: 2
+loss_norm_tokens: 4096
+max_grad_norm: 1.0
+save_every: 5

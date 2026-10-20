@@ -1,0 +1,11 @@
+# Versions used for the reported runs (Python 3.12, CUDA 13)
+vllm==0.29.0
+torch==2.13.0
+transformers==5.12.1
+peft==0.19.1
+numpy
+pyyaml
+aiohttp
+safetensors
+datasets          # only for selectrl.data.codecontests
+pytest
