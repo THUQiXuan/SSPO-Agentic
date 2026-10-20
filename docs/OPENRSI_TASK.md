@@ -38,14 +38,15 @@ the context), not by throughput; the update is data-parallel with the same globa
 * **Every candidate of the research loop: one training seed (0) and one evaluation, not repeated.** A second seed per
   candidate would roughly double the cycle (≈ 7–8 h, fewer than 7 loops in 48 h). The evaluation of a fixed adapter
   uses fixed run seeds, so repeating it measures nothing new.
-* **SSPO baseline: two additional training seeds (1 and 2), once, before the agent run.** The only evidence for the
-  level of SSPO is one seed, while the gains the task is about are a few points (SSPO beat Dr. GRPO by 4.9), the same
-  order as plausible seed-to-seed variation of a 30-step LoRA RL run. The agent also keeps the best of about 12
-  single-seed results, which inflates that result when the spread is not small. Without the spread no meaningful-gain
-  threshold can be set. The same job validates the 8-GPU lane and measures Work and Judge time
-  (`cluster/openrsi_validate_8gpu.sh`: re-score the released seed-0 adapter, train and score seeds 1 and 2;
-  about 8 h on one 8 × H200 node).
-* **Threshold after that job.** Let s be the standard deviation of test select@8 across SSPO seeds 0, 1, 2 and m their
+* **SSPO baseline: first one more run, seed 0 on the 8-GPU lane.** The only evidence for the level of SSPO is one
+  seed, while the gains the task is about are a few points (SSPO beat Dr. GRPO by 4.9). The 8-GPU run uses the same
+  seed, problem order and rollout seeds as the released adapter, but different GPU numerics make its trajectories
+  diverge, so it is both a reproduction of the baseline on the task lane and a second draw of the SSPO result. The
+  same job measures Work and Judge time (`cluster/openrsi_validate_8gpu.sh`, operator guide
+  `cluster/remote/README.md`: re-score the released adapter, train and score seed 0; about 4–5 h on one 8 × H200 node).
+* **Seeds 1 and 2 only if needed.** If the two seed-0 results differ by more than 2 points, or the final comparison
+  of the agent run needs the spread, SSPO is also trained with seeds 1 and 2 (`SEEDS="1 2"` with the same script).
+* **Threshold after that job.** Let s be the standard deviation of test select@8 across the SSPO runs and m their
   mean. A final candidate is a meaningful improvement when its seed-0 score exceeds m by at least G = max(2, 3s)
   points (one seed against a three-seed mean has standard deviation ≈ 1.15 s, and the final candidate is the best of
   about 12, so 3s ≈ 2.6 standard deviations). Only when the final candidate lies above m but below m + G is it
@@ -98,7 +99,7 @@ Compute check: within the normal reference (estimate of 11–16 loops in 48 h on
 
 ## 6. Things to finish before submitting
 
-1. Publish the release assets (problem files, checker cases, three adapters, evaluation rows) and pin the commit.
-2. Run `cluster/openrsi_validate_8gpu.sh` on one 8 × H200 node: it validates the Work and Judge lane, measures the
-   cycle time and gives SSPO seeds 1 and 2; then fill in s, m and G (section 3) and the measured times.
+1. Publish the release assets (problem files, checker cases, three adapters, reference rows) and pin the commit.
+2. Run `cluster/openrsi_validate_8gpu.sh` on one 8 × H200 node (lane validation, cycle time, SSPO seed 0 on the task
+   lane); then fill in the measured times and, if needed, run seeds 1 and 2 (section 3).
 3. Contributor email.
